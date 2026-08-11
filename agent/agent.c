@@ -21,6 +21,7 @@
 #include "Table.pb-c.h"
 #include "Packet.pb-c.h"
 #include "Notify.pb-c.h"
+#include "signature_verifier.h"
 
 #include "agent.h"
 #include "ebpf_consts.h"
@@ -192,6 +193,22 @@ int recv_function_add(void *buffer, struct header *header)
     }
     else
     {
+	printf("Checking X.509 signature for function %s\n", request->name);
+	if (request->signature.len == 0 || request -> certificate.len == 0 || !verify_elf_signature_x509(request->elf.data, request->elf.len, request->signature.data, request->signature.len, request->certificate.data, request->certificate.len))
+	{
+		reply.status = FUNCTION_ADD_REPLY__FUNCTION_ADD_STATUS__INVALID_FUNCTION;
+		printf("Rejected by X.509 signature verification\n");
+		printf("Rejected function: invalid ELF signature or certificate\n");
+
+		int packet_len = function_add_reply__get_packed_size(&reply);
+		void *packet = create_packet(HEADER__TYPE__FUNCTION_ADD_REPLY, packet_len);
+		function_add_reply__pack(&reply, packet + HEADER_LENGTH);
+		send(agent.fd, packet, HEADER_LENGTH + packet_len, MSG_NOSIGNAL);
+
+		function_add_request__free_unpacked(request, NULL);
+		free(packet);
+		return len;
+	}
 
         // If there is an existing stage in the pipeline at this position free it
         struct stage *stage = &pipeline[request->index];
