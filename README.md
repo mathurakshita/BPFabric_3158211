@@ -41,10 +41,13 @@ The switch-side agent must already have access to a trusted CA certificate:
 ```text
 security/ca/ca_cert.pem
 
+```
 The private keys must remain on the trusted signing/build side and must not be committed to GitHub.
 Do not commit:
+```
 security/ca/ca_private.key
 security/signer/signer_private.key
 *.sig
+```
 
 
