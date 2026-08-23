@@ -158,8 +158,11 @@ cd ~/BPFabric
 openssl pkeyutl -sign -inkey security/signer/signer_private.key -rawin -in examples/flood_all.o -out examples/flood_all.o.sig
 ```
 The signature filename must match the object path with .sig appended.
+
 Example:
+
 examples/flood_all.o
+
 examples/flood_all.o.sig
 
 ## Run Mininet and Controller
@@ -174,45 +177,70 @@ cd ~/BPFabric/controller
 BPFABRIC_SIGNER_CERT=/home/amathur/BPFabric/security/signer/signer_cert.pem python3 cli.py
 ```
 Install a Signed Function
+
 In the controller CLI, use:
 ```
 1 add 0 flood ../examples/flood_all.o
 ```
 Command format: <dpid> add <pipeline_index> <function_name> <object_path>
+
 Example using the learning switch:
+
 1 add 0 learningswitch ../examples/learningswitch.o
+
 Expected result for a valid signed object:
+
 Function has been installed
 
 ## Attack Demonstrations
 -- Tampered Object Attack --
+
 This attack modifies the ELF object bytes but reuses the old signature.
+
 If flood_all_tampered.o has already been created, copy the original signature:
+
 cd ~/BPFabric/examples
+<br>
 cp flood_all.o.sig flood_all_tampered.o.sig
+
 Then install the tampered function from the controller CLI:
+
 1 add 0 tampered ../examples/flood_all_tampered.o
 
 Expected controller result:
+
 Unable to install this function
+
 Expected switch/Mininet output:
+
 ELF signature verification failed
+
 [MEASURE] function rejected by X.509 verification
 
 -- Replacement Object Attack --
+
 This attack replaces the intended object with a different valid object but reuses the wrong signature.
+
 cd ~/BPFabric/examples
+<br>
 cp flood_all.o.sig drop_all.o.sig
+
 Then install the replacement function from the controller CLI:
+
 1 add 0 drop ../examples/drop_all.o
 
 Expected controller result:
+
 Unable to install this function
+
 Expected switch/Mininet output:
+
 ELF signature verification failed
+
 [MEASURE] function rejected by X.509 verification
 
 ## Evaluation Mode
+
 For experimental comparison, X.509 verification can be skipped using:
 ```
 cd ~/BPFabric/mininet
@@ -220,12 +248,19 @@ sudo -E BPFABRIC_SKIP_X509=1 BPFABRIC_CA_CERT=/home/amathur/BPFabric/security/ca
 This keeps the modified deployment path but disables the verification computation. It is useful for isolating the computational overhead of X.509 verification.
 ```
 The agent prints timing information in microseconds:
+
 [MEASURE] x509_verify_us=...
+
 [MEASURE] ubpf_load_elf_us=...
+
 [MEASURE] ubpf_compile_us=...
+
 [MEASURE] total_add_success_us=...
+
 [MEASURE] total_add_rejected_us=...
+
 Meaning of each field:
+
 ```
 Field	Meaning
 x509_verify_us	Time spent verifying signer certificate and ELF signature
@@ -237,10 +272,15 @@ total_add_rejected_us	Total time to reject an invalid function
 
 ## Example Evaluation Results
 Example size measurements:
+
 examples/flood_all.o              640 bytes
+
 examples/flood_all.o.sig           64 bytes
+
 security/signer/signer_cert.pem   400 bytes
+
 The extra security payload for this example is:
+
 64 + 400 = 464 bytes
 
 Observed behaviour:
@@ -266,18 +306,29 @@ Switch pipeline checks: Executes the installed function on packets.
 
 ## Cleanup
 Stop Mininet and clean the topology:
+<br>
 exit
+<br>
 sudo mn -c
-
+<br>
 ## Git Safety Notes
 Before committing, check:
+
 git status --short
+
 Do not commit private keys or generated signatures:
+
 security/ca/ca_private.key
+
 security/signer/signer_private.key
+
 *.sig
-Recommended .gitignore entries:
+
+## Recommended .gitignore entries:
+
 security/**/*.key
+
 security/**/*.srl
+
 *.sig
 
