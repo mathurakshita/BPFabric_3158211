@@ -10,6 +10,9 @@
 #include <string.h>
 #include <pthread.h>
 
+#include <time.h>
+#include <stdlib.h>
+
 #include <errno.h>
 
 #include "ubpf.h"
@@ -176,11 +179,33 @@ int recv_hello(void *buffer, struct header *header)
     return len;
 }
 
+static long elapsed_us(struct timespec start, struct timespec end)
+{
+    return (end.tv_sec - start.tv_sec) * 1000000L +
+           (end.tv_nsec - start.tv_nsec) / 1000L;
+}
+
 int recv_function_add(void *buffer, struct header *header)
 {
     FunctionAddRequest *request;
 
     request = function_add_request__unpack(NULL, header->length, buffer);
+
+    if (request == NULL)
+    {
+       return 0;
+    }
+
+    struct timespec t_total_start, t_total_end;
+    struct timespec t_sig_start, t_sig_end;
+    struct timespec t_load_start, t_load_end;
+    struct timespec t_compile_start, t_compile_end;
+
+    long sig_us = 0;
+    long load_us = 0;
+    long compile_us = 0;
+
+    clock_gettime(CLOCK_MONOTONIC, &t_total_start);
     int len = function_add_request__get_packed_size(request);
 
     FunctionAddReply reply = FUNCTION_ADD_REPLY__INIT;
@@ -194,21 +219,41 @@ int recv_function_add(void *buffer, struct header *header)
     else
     {
 	printf("Checking X.509 signature for function %s\n", request->name);
-	if (request->signature.len == 0 || request -> certificate.len == 0 || !verify_elf_signature_x509(request->elf.data, request->elf.len, request->signature.data, request->signature.len, request->certificate.data, request->certificate.len))
-	{
-		reply.status = FUNCTION_ADD_REPLY__FUNCTION_ADD_STATUS__INVALID_FUNCTION;
-		printf("Rejected by X.509 signature verification\n");
-		printf("Rejected function: invalid ELF signature or certificate\n");
+	int skip_x509 = getenv("BPFABRIC_SKIP_X509") != NULL;
 
-		int packet_len = function_add_reply__get_packed_size(&reply);
-		void *packet = create_packet(HEADER__TYPE__FUNCTION_ADD_REPLY, packet_len);
-		function_add_reply__pack(&reply, packet + HEADER_LENGTH);
-		send(agent.fd, packet, HEADER_LENGTH + packet_len, MSG_NOSIGNAL);
+        if (!skip_x509)
+        {
+            clock_gettime(CLOCK_MONOTONIC, &t_sig_start);
 
-		function_add_request__free_unpacked(request, NULL);
-		free(packet);
-		return len;
-	}
+            int sig_ok = request->signature.len != 0 && request->certificate.len != 0 && verify_elf_signature_x509(request->elf.data, request->elf.len,
+                                           request->signature.data, request->signature.len,
+                                           request->certificate.data, request->certificate.len);
+
+            clock_gettime(CLOCK_MONOTONIC, &t_sig_end);
+            sig_us = elapsed_us(t_sig_start, t_sig_end);
+
+            printf("[MEASURE] x509_verify_us=%ld\n", sig_us);
+
+            if (!sig_ok)
+            {
+                reply.status = FUNCTION_ADD_REPLY__FUNCTION_ADD_STATUS__INVALID_FUNCTION;
+                printf("[MEASURE] function rejected by X.509 verification\n");
+
+                int packet_len = function_add_reply__get_packed_size(&reply);
+                void *packet = create_packet(HEADER__TYPE__FUNCTION_ADD_REPLY, packet_len);
+                function_add_reply__pack(&reply, packet + HEADER_LENGTH);
+                send(agent.fd, packet, HEADER_LENGTH + packet_len, MSG_NOSIGNAL);
+
+                clock_gettime(CLOCK_MONOTONIC, &t_total_end);
+                printf("[MEASURE] total_add_rejected_us=%ld\n",elapsed_us(t_total_start, t_total_end));
+
+                return len;
+           }
+        }
+        else
+        {
+            printf("[MEASURE] x509 verification skipped\n");
+        }
 
         // If there is an existing stage in the pipeline at this position free it
         struct stage *stage = &pipeline[request->index];
@@ -238,7 +283,14 @@ int recv_function_add(void *buffer, struct header *header)
         // Load the stage function
         int err;
         char *errmsg;
+        clock_gettime(CLOCK_MONOTONIC, &t_load_start);
+
         err = ubpf_load_elf(stage->vm, request->elf.data, request->elf.len, &errmsg);
+
+        clock_gettime(CLOCK_MONOTONIC, &t_load_end);
+        load_us = elapsed_us(t_load_start, t_load_end);
+
+        printf("[MEASURE] ubpf_load_elf_us=%ld\n", load_us);
 
         if (err != 0)
         {
@@ -250,7 +302,14 @@ int recv_function_add(void *buffer, struct header *header)
         {
 // On x86-64 architectures use the JIT compiler, otherwise fallback to the interpreter
 #if __x86_64__
+            clock_gettime(CLOCK_MONOTONIC, &t_compile_start);
+
             stage->exec = ubpf_compile(stage->vm, &errmsg);
+
+            clock_gettime(CLOCK_MONOTONIC, &t_compile_end);
+            compile_us = elapsed_us(t_compile_start, t_compile_end);
+
+            printf("[MEASURE] ubpf_compile_us=%ld\n", compile_us);
 #endif
 
             if (stage->exec == NULL)
@@ -268,6 +327,17 @@ int recv_function_add(void *buffer, struct header *header)
     void *packet = create_packet(HEADER__TYPE__FUNCTION_ADD_REPLY, packet_len);
     function_add_reply__pack(&reply, packet + HEADER_LENGTH);
     send(agent.fd, packet, HEADER_LENGTH + packet_len, MSG_NOSIGNAL);
+
+    clock_gettime(CLOCK_MONOTONIC, &t_total_end);
+
+    printf("[MEASURE] total_add_success_us=%ld sig_us=%ld load_us=%ld compile_us=%ld elf_bytes=%zu sig_bytes=%zu cert_bytes=%zu\n",
+           elapsed_us(t_total_start, t_total_end),
+           sig_us,
+           load_us,
+           compile_us,
+           request->elf.len,
+           request->signature.len,
+           request->certificate.len);
 
     // Free the resources
     function_add_request__free_unpacked(request, NULL);

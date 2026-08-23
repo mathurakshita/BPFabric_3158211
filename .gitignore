@@ -30,3 +30,8 @@ ipkg-*
 .prepared
 .quilt_checked
 .source_dir
+
+# Dissertation security artifacts
+security/**/*.key
+security/**/*.srl
+*.sig
