@@ -4,6 +4,10 @@ This repository is based on BPFabric, a research framework for deploying BPF/uBP
 
 This fork adds an X.509-based digital signature verification layer to the BPFabric function installation path. The purpose of the extension is to verify the authenticity and integrity of BPF/uBPF ELF object files before they are loaded into the switch pipeline.
 
+Contributer: Dr. Dimitrios Pezaros \n
+Supervisor: Dr. Tahira Mahboob \n
+Author: Akshita Mathur
+
 ## Project Aim
 
 In the original BPFabric workflow, a controller sends a compiled ELF object file to a switch-side agent. The agent then loads the object using the uBPF loader and installs the resulting function into the switch pipeline.
