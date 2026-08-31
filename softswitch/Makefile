@@ -1,10 +1,10 @@
 CFLAGS += -g -I../ubpf/inc -I../agent -I../includes
 LDFLAGS += -L../ubpf -L../bpfmap
-LDLIBS += -lpthread -lprotobuf-c -lubpf -lbpfmap
+LDLIBS += -lpthread -lprotobuf-c -lubpf -lbpfmap -lcrypto
 
 all: softswitch
 
-softswitch: main.c ../agent/agent.o ../protocol/src/c/*.pb-c.c
+softswitch: main.c ../agent/agent.o ../agent/signature_verifier.o ../protocol/src/c/*.pb-c.c
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS)
 
 clean:

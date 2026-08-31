@@ -19,7 +19,9 @@ bpfmap/test_bpfmap
 bpfmap/test_hashmap
 
 controller/latency.dat
-
+security/**/*.key
+security/**/*.srl
+*.sig
 
 # OpenWRT package files
 ipkg-*
@@ -28,3 +30,8 @@ ipkg-*
 .prepared
 .quilt_checked
 .source_dir
+
+# Dissertation security artifacts
+security/**/*.key
+security/**/*.srl
+*.sig

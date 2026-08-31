@@ -8,6 +8,7 @@ from twisted.internet import reactor
 
 from core import eBPFCoreApplication, set_event_handler, FLOOD
 from core.packets import *
+from signature_utils import load_signature_for_object, load_signer_certificate
 
 # The intro message to show at the top when running the program
 banner = "-" * 80 + """
@@ -110,16 +111,35 @@ class SwitchCLI(cmd.Cmd):
         if len(args) != 3:
             print("invalid")
             return
-        
+
         index, name, path = args
 
         if not os.path.isfile(path):
             print('Invalid file path')
             return
 
-        with open(path, 'rb') as f:
+     #   with open(path, 'rb') as f:
+      #      elf = f.read()
+       #     self.connection.send(FunctionAddRequest(name=name, index=int(index), elf=elf))
+
+        try:
+            signature = load_signature_for_object(path)
+            certificate = load_signer_certificate()
+        except FileNotFoundError as e:
+            print(e)
+            return
+
+        with open(path,'rb') as f:
             elf = f.read()
-            self.connection.send(FunctionAddRequest(name=name, index=int(index), elf=elf))
+
+        self.connection.send(FunctionAddRequest(
+            name =name,
+            index=int(index),
+            elf=elf,
+            signature=signature,
+            certificate=certificate
+        ))
+
 
     def do_remove(self, line: str) -> None:
         self.connection.send(FunctionRemoveRequest(index=int(line)))

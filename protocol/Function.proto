@@ -4,6 +4,8 @@ message FunctionAddRequest {
     string name = 1;
     uint32 index = 2;
     bytes elf = 3;
+    bytes signature = 4;
+    bytes certificate =5;
 }
 
 message FunctionAddReply {
