@@ -72,19 +72,19 @@ examples/patch_flood.py
 
 ## High-level role of each component:
 ```
-File	Purpose
-protocol/Function.proto	Adds signature and certificate fields to FunctionAddRequest
-controller/cli.py	Sends ELF object, signature, and signer certificate to the agent
-controller/signature_utils.py	Loads .sig file and signer certificate
-agent/agent.c	Verifies X.509 signature before uBPF loading
-agent/signature_verifier.c	Implements certificate and signature verification using OpenSSL
-agent/signature_verifier.h	Header for the verifier module
-agent/Makefile	Builds the agent with signature verifier object
-softswitch/Makefile	Links OpenSSL crypto library
-security/setup_x509.sh	Generates CA and signer keys/certificates
-examples/flood_all.c	Simple function that floods packets
-examples/drop_all.c	Simple function that drops packets
-examples/patch_flood.py	Demonstrates ELF byte tampering
+File	                              Purpose
+protocol/Function.proto	            Adds signature and certificate fields to FunctionAddRequest
+controller/cli.py	                  Sends ELF object, signature, and signer certificate to the agent
+controller/signature_utils.py	      Loads .sig file and signer certificate
+agent/agent.c	                     Verifies X.509 signature before uBPF loading
+agent/signature_verifier.c	         Implements certificate and signature verification using OpenSSL
+agent/signature_verifier.h	         Header for the verifier module
+agent/Makefile	                     Builds the agent with signature verifier object
+softswitch/Makefile	               Links OpenSSL crypto library
+security/setup_x509.sh	            Generates CA and signer keys/certificates
+examples/flood_all.c	               Simple function that floods packets
+examples/drop_all.c	               Simple function that drops packets
+examples/patch_flood.py	            Demonstrates ELF byte tampering
 ```
 
 ## Prerequisites
@@ -266,11 +266,11 @@ The agent prints timing information in microseconds:
 Meaning of each field:
 
 ```
-Field	Meaning
-x509_verify_us	Time spent verifying signer certificate and ELF signature
-ubpf_load_elf_us	Time spent loading/parsing the ELF object
-ubpf_compile_us	Time spent compiling/JITing the uBPF program
-total_add_success_us	Total successful function installation time
+Field	                  Meaning
+x509_verify_us	         Time spent verifying signer certificate and ELF signature
+ubpf_load_elf_us	      Time spent loading/parsing the ELF object
+ubpf_compile_us	      Time spent compiling/JITing the uBPF program
+total_add_success_us	   Total successful function installation time
 total_add_rejected_us	Total time to reject an invalid function
 ```
 
@@ -289,11 +289,11 @@ The extra security payload for this example is:
 
 Observed behaviour:
 ```
-Scenario	Result
-Valid signed object	Accepted
-Tampered object with old signature	Rejected
+Scenario	                                 Result
+Valid signed object	                     Accepted
+Tampered object with old signature	      Rejected
 Replacement object with wrong signature	Rejected
-Unsigned object	Rejected
+Unsigned object	                        Rejected
 ```
 
 The security layer adds deployment-time overhead, mainly from certificate validation and signature verification. It does not add per-packet overhead because verification happens only during function installation, before the object reaches the uBPF loader.
