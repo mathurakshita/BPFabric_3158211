@@ -1,0 +1,2 @@
+configuration,switches,repetition,dpid,status,per_switch_us,batch_us
+x509,1,1,1,OK,4193.462,4242.963
