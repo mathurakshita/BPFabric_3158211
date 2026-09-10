@@ -1,0 +1,50 @@
+# callgrind format
+version: 1
+creator: callgrind-3.22.0
+pid: 7416
+cmd:  evaluation/pvl_instruction_benchmark empty examples/flood_all.o examples/flood_all.o.sig security/signer/signer_cert.pem 1000
+part: 1
+
+
+desc: I1 cache: 
+desc: D1 cache: 
+desc: LL cache: 
+
+desc: Timerange: Basic block 0 - 5001
+desc: Trigger: Program termination
+
+positions: line
+events: Ir
+summary: 0
+
+
+ob=(1) /home/amathur/BPFabric/evaluation/pvl_instruction_benchmark
+fl=(1) /home/amathur/BPFabric/evaluation/pvl_instruction_benchmark.c
+fn=(2) empty_operation
+55 1000
++1 8000
++4 5000
++1 2000
+
+fn=(0) main
+114 2
++2 1
+-5 1
++6 1
+-6 3
++6 11
+-1 1
++1 1
+cfn=(2)
+calls=1 -62 
+* 16
+* 5994
+-1 999
++1 999
+cfn=(2)
+calls=999 -62 
+* 15984
+* 2000
+-1 2000
+
+totals: 28013

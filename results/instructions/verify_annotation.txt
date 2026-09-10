@@ -1,0 +1,243 @@
+--------------------------------------------------------------------------------
+Profile data file 'results/instructions/verify.out' (creator: callgrind-3.22.0)
+--------------------------------------------------------------------------------
+I1 cache: 
+D1 cache: 
+LL cache: 
+Timerange: Basic block 0 - 426093236
+Trigger: Program termination
+Profiled target:  evaluation/pvl_instruction_benchmark verify examples/flood_all.o examples/flood_all.o.sig security/signer/signer_cert.pem 1000 (PID 7410, part 1)
+Events recorded:  Ir
+Events shown:     Ir
+Event sort order: Ir
+Thresholds:       1
+Include dirs:     
+User annotated:   
+Auto-annotation:  on
+
+--------------------------------------------------------------------------------
+Ir                     
+--------------------------------------------------------------------------------
+4,786,805,665 (100.0%)  PROGRAM TOTALS
+
+--------------------------------------------------------------------------------
+Ir                      file:function
+--------------------------------------------------------------------------------
+4,786,805,665 (100.0%)  evaluation/pvl_instruction_benchmark.c:main [/home/amathur/BPFabric/evaluation/pvl_instruction_benchmark]
+4,786,793,652 (100.0%)  /home/amathur/BPFabric/agent/signature_verifier.c:verify_elf_signature_x509
+4,786,793,652 (100.0%)  agent/signature_verifier.c:verify_elf_signature_x509 [/home/amathur/BPFabric/evaluation/pvl_instruction_benchmark]
+3,097,964,000 (64.72%)  ???:EVP_DigestVerify [/usr/lib/x86_64-linux-gnu/libcrypto.so.3]
+
+--------------------------------------------------------------------------------
+-- Auto-annotated source: evaluation/pvl_instruction_benchmark.c
+--------------------------------------------------------------------------------
+Ir             
+
+-- line 103 ----------------------------------------
+    .                   : empty_operation;
+    .           
+    .               /* Warm up the verification path before measurement. */
+    .               if (!operation(elf, elf_len, sig, sig_len, cert, cert_len)) {
+    .                   fprintf(stderr, "Warm-up operation failed\n");
+    .                   return EXIT_FAILURE;
+    .               }
+    .           
+    4 ( 0.00%)      long successes = 0;
+    .           
+    .               CALLGRIND_ZERO_STATS;
+    2 ( 0.00%)      CALLGRIND_START_INSTRUMENTATION;
+    .           
+3,001 ( 0.00%)      for (long i = 0; i < iterations; ++i) {
+9,006 ( 0.00%)          successes += operation(
+4,786,793,652 (100.0%)  => /home/amathur/BPFabric/agent/signature_verifier.c:verify_elf_signature_x509 (1,000x)
+    .                       elf, elf_len,
+    .                       sig, sig_len,
+    .                       cert, cert_len
+    .                   );
+    .               }
+    .           
+    .               CALLGRIND_STOP_INSTRUMENTATION;
+    .           
+-- line 125 ----------------------------------------
+
+--------------------------------------------------------------------------------
+-- Auto-annotated source: /home/amathur/BPFabric/agent/signature_verifier.c
+--------------------------------------------------------------------------------
+  No information has been collected for /home/amathur/BPFabric/agent/signature_verifier.c
+
+--------------------------------------------------------------------------------
+-- Auto-annotated source: agent/signature_verifier.c
+--------------------------------------------------------------------------------
+Ir              
+
+-- line 5 ----------------------------------------
+     .           #include <string.h>
+     .           #include <openssl/evp.h>
+     .           #include <openssl/pem.h>
+     .           #include <openssl/x509.h>
+     .           #include <openssl/x509_vfy.h>
+     .           
+     .           static X509 *read_cert_from_memory(const unsigned char *data, size_t len)
+     .           {
+ 2,000 ( 0.00%)  	BIO *bio = BIO_new_mem_buf(data, (int)len);
+997,142 ( 0.02%)  => ???:0x0000000000109370 (1,000x)
+ 2,000 ( 0.00%)  	if (bio==NULL)
+     .           	{
+     .           		return NULL;
+     .           	}
+     .           
+ 7,000 ( 0.00%)  	X509 *cert = PEM_read_bio_X509(bio, NULL,NULL,NULL);
+750,865,937 (15.69%)  => ???:0x00000000001094b0 (1,000x)
+ 2,000 ( 0.00%)  	BIO_free(bio);
+940,116 ( 0.02%)  => ???:0x0000000000109450 (1,000x)
+     .           	return cert;
+     .           }
+     .           
+     .           static X509 *read_trusted_ca_cert(void)
+     .           {
+ 3,000 ( 0.00%)  	const char *ca_path = getenv("BPFABRIC_CA_CERT");
+330,000 ( 0.01%)  => ???:0x00000000001093c0 (1,000x)
+     .           
+     .           	if (ca_path == NULL)
+     .           	{
+ 3,000 ( 0.00%)  		ca_path="../security/ca/ca_cert.pem";
+     .           	}
+ 3,000 ( 0.00%)  	FILE *fp = fopen(ca_path, "r");
+465,000 ( 0.01%)  => ???:0x00000000001092d0 (1,000x)
+ 2,000 ( 0.00%)  	if (fp==NULL)
+     .           	{
+     .           		perror("Unable to open trusted CA certificate");
+     .           		return NULL;
+     .           	}
+     .           
+ 6,000 ( 0.00%)  	X509 *ca_cert = PEM_read_X509(fp,NULL,NULL,NULL);
+770,223,704 (16.09%)  => ???:0x0000000000109350 (1,000x)
+ 2,000 ( 0.00%)  	fclose(fp);
+587,968 ( 0.01%)  => ???:0x0000000000109430 (1,000x)
+ 2,000 ( 0.00%)  	if (ca_cert == NULL)
+     .           	{
+     .           		fprintf(stderr, "Unable to parse trusted CA certificate\n");
+     .           	}
+     .           	return ca_cert;
+     .           }
+     .           
+     .           static int verify_certificate_chain(X509 *signer_cert, X509 *ca_cert)
+     .           {
+     .           	int result = 0;
+     .           
+ 2,000 ( 0.00%)  	X509_STORE *store = X509_STORE_new();
+1,157,860 ( 0.02%)  => ???:0x00000000001093e0 (1,000x)
+ 2,000 ( 0.00%)  	if (store == NULL)
+     .           	{
+     .           		return 0;
+     .           	}
+     .           
+ 5,000 ( 0.00%)  	if (X509_STORE_add_cert(store,ca_cert) !=1)
+587,000 ( 0.01%)  => ???:0x0000000000109340 (1,000x)
+     .           	{
+     .           		X509_STORE_free(store);
+     .           		return 0;
+     .           	}
+ 1,000 ( 0.00%)  	X509_STORE_CTX *ctx = X509_STORE_CTX_new();
+154,000 ( 0.00%)  => ???:0x0000000000109360 (1,000x)
+ 2,000 ( 0.00%)  	if (ctx == NULL)
+     .           	{
+     .           		X509_STORE_free(store);
+     .           		return 0;
+     .           	}
+ 9,000 ( 0.00%)  	if (X509_STORE_CTX_init(ctx,store,signer_cert,NULL)==1)
+1,316,000 ( 0.03%)  => ???:0x0000000000109330 (1,000x)
+     .           	{
+ 3,000 ( 0.00%)  		result=X509_verify_cert(ctx) == 1;
+1,661,067,725 (34.70%)  => ???:0x0000000000109460 (1,000x)
+     .           	}
+ 3,000 ( 0.00%)  	if (!result)
+     .           	{
+     .           		int err = X509_STORE_CTX_get_error(ctx);
+     .           		fprintf(stderr, "Certificate verification failed: %s\n", X509_verify_cert_error_string(err));
+     .           	}
+     .           
+ 2,000 ( 0.00%)  	X509_STORE_CTX_free(ctx);
+1,104,038 ( 0.02%)  => ???:0x0000000000109440 (1,000x)
+ 2,000 ( 0.00%)  	X509_STORE_free(store);
+1,308,924 ( 0.03%)  => ???:0x0000000000109310 (1,000x)
+     .           
+     .           	return result;
+     .           
+     .           }
+     .           
+     .           static int verify_object_signature(X509 *signer_cert, const unsigned char *elf, size_t elf_len, const unsigned char *sig, size_t sig_len)
+     .           {
+     .           	int result = 0;
+     .           
+ 3,000 ( 0.00%)  	EVP_PKEY *pubkey = X509_get_pubkey(signer_cert);
+53,000 ( 0.00%)  => ???:0x00000000001094a0 (1,000x)
+ 2,000 ( 0.00%)  	if (pubkey==NULL)
+     .           	{
+     .           		fprintf(stderr, "Unable to extract public key from signer certificate\n");
+     .           		return 0;
+     .           	}
+     .           
+ 2,000 ( 0.00%)  	EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+108,000 ( 0.00%)  => ???:0x00000000001092f0 (1,000x)
+ 2,000 ( 0.00%)  	if (ctx == NULL)
+     .           	{
+     .           		EVP_PKEY_free(pubkey);
+     .           		return 0;
+     .           	}
+     .           
+ 8,000 ( 0.00%)  	if (EVP_DigestVerifyInit(ctx, NULL, NULL, NULL, pubkey) == 1)
+17,467,772 ( 0.36%)  => ???:0x0000000000109420 (1,000x)
+     .           	{
+ 8,000 ( 0.00%)  		result = EVP_DigestVerify(ctx, sig, sig_len, elf, elf_len) == 1;
+1,551,226,000 (32.41%)  => ???:0x00000000001092e0 (1,000x)
+     .           	}
+     .           
+ 2,000 ( 0.00%)  	if (!result)
+     .           	{
+     .           		fprintf(stderr, "ELF signature verification failed\n");
+     .           	}
+     .           
+ 2,000 ( 0.00%)  	EVP_MD_CTX_free(ctx);
+709,000 ( 0.01%)  => ???:0x00000000001093d0 (1,000x)
+ 2,000 ( 0.00%)  	EVP_PKEY_free(pubkey);
+23,000 ( 0.00%)  => ???:0x0000000000109300 (1,000x)
+ 1,000 ( 0.00%)  	return result;
+     .           }
+     .           
+     .           int verify_elf_signature_x509(const unsigned char *elf, size_t elf_len, const unsigned char *sig, size_t sig_len, const unsigned char *cert, size_t cert_len)
+13,000 ( 0.00%)  {
+     .           	int result = 0;
+     .           	X509 *signer_cert = read_cert_from_memory(cert, cert_len);
+ 2,000 ( 0.00%)  	if (signer_cert == NULL)
+     .           	{
+     .           		fprintf(stderr, "Unable to parse signer certification\n");
+     .           		return 0;
+     .           	}
+     .           
+     .           	X509 *ca_cert = read_trusted_ca_cert();
+     .           	if (ca_cert == NULL)
+     .           	{
+-- line 131 ----------------------------------------
+-- line 141 ----------------------------------------
+     .           	if (!verify_object_signature(signer_cert, elf, elf_len, sig, sig_len))
+     .           	{
+     .           		goto cleanup;
+     .           	}
+     .           
+     .           	result = 1;
+     .           
+     .           cleanup:
+ 2,000 ( 0.00%)  	X509_free(ca_cert);
+15,089,209 ( 0.32%)  => ???:0x0000000000109410 (1,000x)
+ 2,000 ( 0.00%)  	X509_free(signer_cert);
+10,887,257 ( 0.23%)  => ???:0x0000000000109410 (1,000x)
+     .           
+     .           	return result;
+ 9,000 ( 0.00%)  }
+
+--------------------------------------------------------------------------------
+Ir               
+--------------------------------------------------------------------------------
+137,013 ( 0.00%)  events annotated
+

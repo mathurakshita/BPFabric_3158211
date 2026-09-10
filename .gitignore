@@ -35,3 +35,8 @@ ipkg-*
 security/**/*.key
 security/**/*.srl
 *.sig
+
+# Generated ML-DSA credentials and test artifacts
+security/oqs/ca/
+security/oqs/signer/
+security/oqs/artifacts/
