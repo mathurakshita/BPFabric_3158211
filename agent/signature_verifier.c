@@ -277,12 +277,6 @@ int verify_elf_signature_x509(
         return 0;
     }
 
-    fprintf(stderr,
-            "[PVL DEBUG] elf_len=%zu, "
-            "sig_len=%zu, cert_len=%zu\n",
-            elf_len,
-            signature_len,
-            certificate_len);
 
     /*
      * Providers must be loaded before parsing an ML-DSA certificate.
@@ -292,34 +286,6 @@ int verify_elf_signature_x509(
         return 0;
     }
 
-    /*
-     * Temporary diagnostic copy of the received certificate.
-     * Remove this block after transport integrity is confirmed.
-     */
-    FILE *debug_cert =
-        fopen("/tmp/received_signer_cert.pem", "wb");
-
-    if (debug_cert == NULL)
-    {
-        perror("Unable to create received-certificate dump");
-    }
-    else
-    {
-        size_t written =
-            fwrite(
-                certificate,
-                1,
-                certificate_len,
-                debug_cert);
-
-        fprintf(stderr,
-                "[PVL DEBUG] dumped %zu/%zu "
-                "certificate bytes\n",
-                written,
-                certificate_len);
-
-        fclose(debug_cert);
-    }
 
     X509 *signer_cert =
         read_cert_from_memory(
