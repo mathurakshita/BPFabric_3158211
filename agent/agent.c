@@ -38,6 +38,8 @@
 
 #define HEADER_LENGTH 4
 #define PIPELINE_STAGES 32
+#define AGENT_RECEIVE_BUFFER_SIZE \
+    (UINT16_MAX + HEADER_LENGTH)
 
 /* Controller Packet header format. */
 struct header
@@ -810,77 +812,269 @@ uint64_t pipeline_exec(void *pkt, size_t len)
 
 void *agent_task()
 {
-    //
-    uint8_t buf[8192]; // TODO should have a proper buffer that wraps around and expand if the message is bigger than this
+    uint8_t buf[AGENT_RECEIVE_BUFFER_SIZE];
     struct sockaddr_in saddr;
 
-    //
-    char *controller_address, *controller_ip, *controller_port;
-    controller_address = controller_port = strdup(agent.options->controller);
-    controller_ip = strsep(&controller_port, ":");
+    char *controller_address =
+        strdup(agent.options->controller);
 
-    //
+    if (controller_address == NULL)
+    {
+        perror("Unable to copy controller address");
+        return NULL;
+    }
+
+    char *controller_cursor = controller_address;
+    char *controller_ip =
+        strsep(&controller_cursor, ":");
+    char *controller_port = controller_cursor;
+
+    if (controller_ip == NULL ||
+        controller_ip[0] == '\0' ||
+        controller_port == NULL ||
+        controller_port[0] == '\0')
+    {
+        fprintf(stderr,
+                "Invalid controller address: %s\n",
+                agent.options->controller);
+        free(controller_address);
+        return NULL;
+    }
+
     memset(&saddr, 0, sizeof(saddr));
     saddr.sin_family = AF_INET;
     saddr.sin_port = htons(atoi(controller_port));
-    if (inet_pton(AF_INET, controller_address, &saddr.sin_addr) <= 0)
+
+    if (inet_pton(
+            AF_INET,
+            controller_ip,
+            &saddr.sin_addr) <= 0)
     {
-        perror("error resolving server address");
-        pthread_exit(NULL);
+        perror("Error resolving controller address");
+        free(controller_address);
+        return NULL;
     }
 
     while (likely(!sigint))
     {
-        // Connect to the controller
-        agent.fd = socket(AF_INET, SOCK_STREAM, 0);
+        agent.fd = socket(
+            AF_INET,
+            SOCK_STREAM,
+            0
+        );
 
-        if (agent.fd >= 0)
+        if (agent.fd < 0)
         {
-            if (connect(agent.fd, (struct sockaddr *)&saddr, sizeof(saddr)) == 0)
+            perror("Unable to create controller socket");
+
+            if (!sigint)
             {
-                // CONFIGURATION
-                send_hello();
+                sleep(5);
+            }
 
-                // MAIN Event Loop
-                struct header header;
-                while (likely(!sigint))
+            continue;
+        }
+
+        if (connect(
+                agent.fd,
+                (struct sockaddr *)&saddr,
+                sizeof(saddr)) != 0)
+        {
+            perror("Unable to connect to the controller");
+            close(agent.fd);
+            agent.fd = -1;
+
+            if (!sigint)
+            {
+                sleep(5);
+            }
+
+            continue;
+        }
+
+        send_hello();
+
+        struct header header;
+        size_t buffered = 0;
+
+        while (likely(!sigint))
+        {
+            /*
+             * A full buffer containing no complete frame indicates
+             * an invalid or unsupported controller message.
+             */
+            if (buffered == sizeof(buf))
+            {
+                fprintf(
+                    stderr,
+                    "Controller message exceeds "
+                    "receive-buffer limit\n"
+                );
+
+                break;
+            }
+
+            ssize_t received = recv(
+                agent.fd,
+                buf + buffered,
+                sizeof(buf) - buffered,
+                0
+            );
+
+            if (received < 0)
+            {
+                if (errno == EINTR)
                 {
-                    // Recv can get multiple headers + payload
-                    int offset = 0;
-                    int len = recv(agent.fd, buf, sizeof(buf), 0);
-                    // printf("received length %d\n", len);
-
-                    if (len <= 0)
-                    {
-                        break;
-                    }
-
-                    // Not great if we don't receive a full header + payload in one go
-                    while (len - offset >= HEADER_LENGTH)
-                    {
-                        // Read the packet header
-                        uint16_t *head = (uint16_t *)(buf + offset);
-                        header.type = ntohs(head[0]);
-                        header.length = ntohs(head[1]);
-                        offset += HEADER_LENGTH;
-
-                        // printf("received packet type: %d length %d\n", header.type, header.length);
-
-                        handler h = handlers[header.type];
-                        offset += h(buf + offset, &header);
-                    }
+                    continue;
                 }
 
-                // TEARDOWN
-                close(agent.fd);
+                perror(
+                    "Unable to receive controller message"
+                );
+
+                break;
+            }
+
+            if (received == 0)
+            {
+                               fprintf(
+                    stderr,
+                    "Controller connection closed\n"
+                );
+
+                break;
+            }
+
+            buffered += (size_t)received;
+
+            size_t offset = 0;
+
+            /*
+             * A TCP read may contain a partial frame, one complete
+             * frame, or multiple complete frames.
+             */
+            while (buffered - offset >= HEADER_LENGTH)
+            {
+                uint16_t network_type;
+                uint16_t network_length;
+
+                memcpy(
+                    &network_type,
+                    buf + offset,
+                    sizeof(network_type)
+                );
+
+                memcpy(
+                    &network_length,
+                    buf + offset +
+                        sizeof(network_type),
+                    sizeof(network_length)
+                );
+
+                header.type =
+                    ntohs(network_type);
+
+                header.length =
+                    ntohs(network_length);
+
+                size_t frame_length =
+                    HEADER_LENGTH +
+                    (size_t)header.length;
+
+                /*
+                 * Keep an incomplete frame for the next recv().
+                 */
+                if (buffered - offset < frame_length)
+                {
+                    break;
+                }
+
+                size_t handler_count =
+                    sizeof(handlers) /
+                    sizeof(handlers[0]);
+
+                if ((size_t)header.type >=
+                        handler_count ||
+                    handlers[header.type] == NULL)
+                {
+                    fprintf(
+                        stderr,
+                        "No handler for message type %u\n",
+                        header.type
+                    );
+
+                    offset += frame_length;
+                    continue;
+                }
+
+                handler message_handler =
+                    handlers[header.type];
+
+                int consumed = message_handler(
+                    buf + offset + HEADER_LENGTH,
+                    &header
+                );
+
+                if (consumed < 0)
+                {
+                    fprintf(
+                        stderr,
+                        "Handler failed for message "
+                        "type %u\n",
+                        header.type
+                    );
+
+                    goto connection_teardown;
+                }
+
+                if ((size_t)consumed !=
+                    (size_t)header.length)
+                {
+                    fprintf(
+                        stderr,
+                        "Handler consumed %d bytes; "
+                        "header declared %u bytes\n",
+                        consumed,
+                        header.length
+                    );
+
+                    goto connection_teardown;
+                }
+
+                offset += frame_length;
+            }
+
+            /*
+             * Retain any incomplete trailing frame and append the
+             * next TCP read after it.
+             */
+            if (offset > 0)
+            {
+                size_t remaining =
+                    buffered - offset;
+
+                memmove(
+                    buf,
+                    buf + offset,
+                    remaining
+                );
+
+                buffered = remaining;
             }
         }
 
-        perror("unable to connect to the controller");
-        sleep(5);
+connection_teardown:
+        close(agent.fd);
+        agent.fd = -1;
+
+        if (!sigint)
+        {
+            sleep(5);
+        }
     }
 
-    pthread_exit(NULL);
+    free(controller_address);
+    return NULL;
 }
 
 int agent_start(tx_packet_fn tx_fn, struct agent_options *opts)
